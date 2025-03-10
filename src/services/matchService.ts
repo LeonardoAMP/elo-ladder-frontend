@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getApiUrl, API_ENDPOINTS } from '../config/api';
 
 export interface Match {
   id: number;
@@ -18,15 +19,15 @@ export const recordMatch = async (
       return 'Invalid match data';
     }
 
-    // Make API call to record the match
-    const response = await axios.post('/api/matches', {
+    // Make API call to record the match using the configured API URL
+    const response = await axios.post(getApiUrl(API_ENDPOINTS.MATCHES.CREATE), {
       playerAId: winnerId,
       playerBId: winnerId == player2Id ? player1Id : player2Id, // loser
       winnerId
     });
 
     if (response.status === 200 || response.status === 201) {
-      return  null;
+      return null;
     } else {
       throw new Error('Failed to record match');
     }
@@ -38,8 +39,8 @@ export const recordMatch = async (
 
 export const getRecentMatches = async (): Promise<Match[] | string> => {
   try {
-    // Make API call to get recent matches
-    const response = await axios.get('/api/matches/recent');
+    // Make API call to get recent matches using the configured API URL
+    const response = await axios.get(getApiUrl(API_ENDPOINTS.MATCHES.RECENT));
 
     if (response.status === 200) {
       return response.data as Match[];

@@ -1,3 +1,5 @@
+import { getApiUrl, API_ENDPOINTS } from '../config/api';
+
 // Default fallback data when API fails
 const defaultPlayers = [
   { id: 1, name: 'Franco', elo: 1501, matchesPlayed: 0, wins: 0, losses: 0 },
@@ -17,8 +19,8 @@ export interface Player {
 
 export const fetchPlayers = async (): Promise<{ data: Player[], error: string | null }> => {
   try {
-    // Replace this URL with your actual API endpoint
-    const response = await fetch('/api/players');
+    // Use the configured API URL for player endpoint
+    const response = await fetch(getApiUrl(API_ENDPOINTS.PLAYERS.LIST));
     
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
