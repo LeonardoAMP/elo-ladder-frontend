@@ -19,7 +19,7 @@ export const recordMatch = async (
     }
 
     // Make API call to record the match
-    const response = await axios.post('http://localhost:5000/api/matches', {
+    const response = await axios.post('/api/matches', {
       playerAId: winnerId,
       playerBId: winnerId == player2Id ? player1Id : player2Id, // loser
       winnerId
@@ -39,7 +39,7 @@ export const recordMatch = async (
 export const getRecentMatches = async (): Promise<Match[] | string> => {
   try {
     // Make API call to get recent matches
-    const response = await axios.get('http://localhost:5000/api/matches/recent');
+    const response = await axios.get('/api/matches/recent');
 
     if (response.status === 200) {
       return response.data as Match[];

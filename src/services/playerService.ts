@@ -18,7 +18,7 @@ export interface Player {
 export const fetchPlayers = async (): Promise<{ data: Player[], error: string | null }> => {
   try {
     // Replace this URL with your actual API endpoint
-    const response = await fetch('http://localhost:5000/api/players');
+    const response = await fetch('/api/players');
     
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`);
