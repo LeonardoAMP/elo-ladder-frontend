@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { fetchPlayers, Player } from './services/playerService';
+import { fetchPlayers, Player, addPlayer as apiAddPlayer } from './services/playerService';
 import { recordMatch, Match, getRecentMatches } from './services/matchService';
+import { login, logout, isAuthenticated, LoginCredentials, getTokenRemainingTime, isTokenExpired } from './services/authService';
 
 const App = () => {
+  // Auth States
+  const [isLoggedIn, setIsLoggedIn] = useState(isAuthenticated());
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  
   // States
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,6 +22,54 @@ const App = () => {
   const [sortDirection, setSortDirection] = useState('desc');
   const [matchHistory, setMatchHistory] = useState<Match[]>([]);
   const [view, setView] = useState('ladder');
+
+  // Check authentication status on mount and set up auto-logout
+  useEffect(() => {
+    // Initial authentication check
+    const checkAuth = () => {
+      const authenticated = isAuthenticated();
+      setIsLoggedIn(authenticated);
+      
+      // If authenticated, set up auto-logout timer
+      if (authenticated) {
+        const remainingTime = getTokenRemainingTime();
+        
+        // Only set timer if there's remaining time
+        if (remainingTime > 0) {
+          const timer = setTimeout(() => {
+            logout();
+            setIsLoggedIn(false);
+            // Optional: Show notification to user about session expiration
+            setAuthError('Your session has expired. Please login again.');
+          }, remainingTime * 1000);
+          
+          // Clear the timer on component unmount
+          return () => clearTimeout(timer);
+        } else if (isTokenExpired()) {
+          // If token is already expired on mount, logout immediately
+          logout();
+          setIsLoggedIn(false);
+        }
+      }
+    };
+    
+    checkAuth();
+    
+    // Periodic check every minute to ensure token validity
+    const intervalId = setInterval(() => {
+      if (isTokenExpired()) {
+        logout();
+        if(isLoggedIn)
+        {
+          setAuthError('Your session has expired. Please login again.');
+        }
+        setIsLoggedIn(false);
+        clearInterval(intervalId);
+      }
+    }, 60000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Fetch players data from API
   useEffect(() => {
@@ -37,6 +92,47 @@ const App = () => {
 
     loadData();
   }, []);
+
+  // Handle login
+  const handleLogin = async () => {
+    setAuthError(null);
+    
+    if (!username.trim() || !password.trim()) {
+      setAuthError('Username and password are required');
+      return;
+    }
+    
+    const credentials: LoginCredentials = {
+      username: username.trim(),
+      password: password.trim()
+    };
+    
+    const result = await login(credentials);
+    
+    if (typeof result === 'string') {
+      setAuthError(result);
+    } else {
+      setIsLoggedIn(true);
+      setUsername('');
+      setPassword('');
+      
+      // Set up auto-logout timer after successful login
+      const remainingTime = getTokenRemainingTime();
+      if (remainingTime > 0) {
+        setTimeout(() => {
+          logout();
+          setIsLoggedIn(false);
+          setAuthError('Your session has expired. Please login again.');
+        }, remainingTime * 1000);
+      }
+    }
+  };
+  
+  // Handle logout
+  const handleLogout = () => {
+    logout();
+    setIsLoggedIn(false);
+  };
 
   // Record a match using the match service
   const handleRecordMatch = async () => {
@@ -74,20 +170,25 @@ const App = () => {
   };
 
   // Add a new player
-  const addPlayer = () => {
+  const addPlayer = async () => {
     if (!newPlayerName.trim()) return;
     
-    const newId = players.length > 0 ? Math.max(...players.map(p => p.id)) + 1 : 1;
-    const newPlayer = {
-      id: newId,
-      name: newPlayerName,
-      elo: 1500,
-      matchesPlayed: 0,
-      wins: 0,
-      losses: 0
-    };
+    const result = await apiAddPlayer(newPlayerName);
     
-    setPlayers([...players, newPlayer]);
+    if (typeof result === 'string') {
+      setError(result);
+      return;
+    }
+    
+    // Refresh player list after adding a new player
+    const { data, error: playersError } = await fetchPlayers();
+    if (data) {
+      setPlayers(data);
+    }
+    if (playersError) {
+      setError(playersError);
+    }
+    
     setNewPlayerName('');
   };
 
@@ -127,6 +228,39 @@ const App = () => {
       hour12: true
     });
   };
+
+  // Render login form
+  const renderLoginForm = () => (
+    <div className="bg-white p-4 rounded shadow mb-6">
+      <h2 className="text-xl font-semibold mb-4">Admin Login</h2>
+      {authError && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 mb-4" role="alert">
+          <p>{authError}</p>
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-3">
+        <input
+          type="text"
+          className="px-3 py-2 border rounded"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+        <input
+          type="password"
+          className="px-3 py-2 border rounded"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <button 
+          className="w-full bg-blue-600 text-white px-4 py-2 rounded"
+          onClick={handleLogin}>
+          Login
+        </button>
+      </div>
+    </div>
+  );
 
   // Render match history component
   const renderMatchHistory = () => (
@@ -214,7 +348,17 @@ const App = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-4 bg-gray-50 rounded-lg shadow">
-      <h1 className="text-3xl font-bold text-center mb-6 text-blue-800">ELO Ladder Management</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-blue-800">ELO Ladder Management</h1>
+        {isLoggedIn && (
+          <button 
+            onClick={handleLogout}
+            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
+          >
+            Logout
+          </button>
+        )}
+      </div>
       
       {/* Navigation */}
       <div className="flex justify-center mb-6">
@@ -249,66 +393,72 @@ const App = () => {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           {/* Left Column - Forms */}
           <div className="col-span-2 space-y-6">
-            {/* Add Player Form 
-            <div className="bg-white p-4 rounded shadow">
-              <h2 className="text-xl font-semibold mb-4">Add New Player</h2>
-              <div className="flex">
-                <input
-                  type="text"
-                  className="flex-1 px-3 py-2 border rounded-l"
-                  placeholder="Player Name"
-                  value={newPlayerName}
-                  onChange={(e) => setNewPlayerName(e.target.value)}
-                />
-                <button 
-                  className="bg-green-600 text-white px-4 py-2 rounded-r"
-                  onClick={addPlayer}>
-                  Add Player
-                </button>
-              </div>
-            </div>
-            */}
+            {/* Login Form or Add Player & Record Match Forms */}
+            {!isLoggedIn ? (
+              renderLoginForm()
+            ) : (
+              <>
+                {/* Add Player Form */}
+                <div className="bg-white p-4 rounded shadow">
+                  <h2 className="text-xl font-semibold mb-4">Add New Player</h2>
+                  <div className="flex">
+                    <input
+                      type="text"
+                      className="flex-1 px-3 py-2 border rounded-l"
+                      placeholder="Player Name"
+                      value={newPlayerName}
+                      onChange={(e) => setNewPlayerName(e.target.value)}
+                    />
+                    <button 
+                      className="bg-green-600 text-white px-4 py-2 rounded-r"
+                      onClick={addPlayer}>
+                      Add Player
+                    </button>
+                  </div>
+                </div>
 
-            {/* Record Match Form */}
-            <div className="bg-white p-4 rounded shadow">
-              <h2 className="text-xl font-semibold mb-4">Record Match</h2>
-              <div className="grid grid-cols-1 gap-3 mb-3">
-                <select 
-                  className="p-2 border rounded"
-                  value={player1}
-                  onChange={(e) => setPlayer1(e.target.value)}>
-                  <option value="">Select Player 1</option>
-                  {players.map(player => (
-                    <option key={`p1-${player.id}`} value={player.id}>{player.name}</option>
-                  ))}
-                </select>
-                <select 
-                  className="p-2 border rounded"
-                  value={player2}
-                  onChange={(e) => setPlayer2(e.target.value)}>
-                  <option value="">Select Player 2</option>
-                  {players.map(player => (
-                    <option key={`p2-${player.id}`} value={player.id} disabled={player.id.toString() === player1}>
-                      {player.name}
-                    </option>
-                  ))}
-                </select>
-                <select 
-                  className="p-2 border rounded"
-                  value={matchResult}
-                  onChange={(e) => setMatchResult(e.target.value)}>
-                  <option value="">Select Winner</option>
-                  {player1 && <option value={player1}>{players.find(p => p.id === parseInt(player1))?.name}</option>}
-                  {player2 && <option value={player2}>{players.find(p => p.id === parseInt(player2))?.name}</option>}
-                </select>
-              </div>
-              <button 
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded"
-                onClick={handleRecordMatch}
-                disabled={!player1 || !player2 || !matchResult}>
-                Record Match
-              </button>
-            </div>
+                {/* Record Match Form */}
+                <div className="bg-white p-4 rounded shadow">
+                  <h2 className="text-xl font-semibold mb-4">Record Match</h2>
+                  <div className="grid grid-cols-1 gap-3 mb-3">
+                    <select 
+                      className="p-2 border rounded"
+                      value={player1}
+                      onChange={(e) => setPlayer1(e.target.value)}>
+                      <option value="">Select Player 1</option>
+                      {players.map(player => (
+                        <option key={`p1-${player.id}`} value={player.id}>{player.name}</option>
+                      ))}
+                    </select>
+                    <select 
+                      className="p-2 border rounded"
+                      value={player2}
+                      onChange={(e) => setPlayer2(e.target.value)}>
+                      <option value="">Select Player 2</option>
+                      {players.map(player => (
+                        <option key={`p2-${player.id}`} value={player.id} disabled={player.id.toString() === player1}>
+                          {player.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select 
+                      className="p-2 border rounded"
+                      value={matchResult}
+                      onChange={(e) => setMatchResult(e.target.value)}>
+                      <option value="">Select Winner</option>
+                      {player1 && <option value={player1}>{players.find(p => p.id === parseInt(player1))?.name}</option>}
+                      {player2 && <option value={player2}>{players.find(p => p.id === parseInt(player2))?.name}</option>}
+                    </select>
+                  </div>
+                  <button 
+                    className="w-full bg-blue-600 text-white px-4 py-2 rounded"
+                    onClick={handleRecordMatch}
+                    disabled={!player1 || !player2 || !matchResult}>
+                    Record Match
+                  </button>
+                </div>
+              </>
+            )}
             
             {/* Recent Matches (shown only in ladder view's left column) */}
             {renderRecentMatches()}
@@ -369,5 +519,4 @@ const App = () => {
   );
 };
 
-
-export default App
+export default App;

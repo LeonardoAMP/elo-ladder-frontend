@@ -9,10 +9,28 @@ export const API_ENDPOINTS = {
   },
   PLAYERS: {
     LIST: '/api/players',
+    CREATE: '/api/players',
   },
+  AUTH: {
+    LOGIN: '/api/auth/login',
+  }
 };
 
 // Helper function to create full API URLs
 export const getApiUrl = (endpoint: string): string => {
   return `${API_BASE_URL}${endpoint}`;
+};
+
+// Helper function to get auth headers
+export const getAuthHeaders = (token?: string | null): HeadersInit => {
+  const authToken = token || localStorage.getItem('auth_token');
+  
+  return authToken
+    ? {
+        Authorization: `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      }
+    : {
+        'Content-Type': 'application/json',
+      };
 };

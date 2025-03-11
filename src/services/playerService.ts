@@ -1,4 +1,4 @@
-import { getApiUrl, API_ENDPOINTS } from '../config/api';
+import { getApiUrl, API_ENDPOINTS, getAuthHeaders } from '../config/api';
 
 // Default fallback data when API fails
 const defaultPlayers = [
@@ -35,5 +35,25 @@ export const fetchPlayers = async (): Promise<{ data: Player[], error: string | 
       data: defaultPlayers, 
       error: "Failed to load players. Using default data."
     };
+  }
+};
+
+export const addPlayer = async (playerName: string): Promise<Player | string> => {
+  try {
+    const response = await fetch(getApiUrl(API_ENDPOINTS.PLAYERS.CREATE), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ name: playerName })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `API error: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (err) {
+    console.error("Failed to add player:", err);
+    return err instanceof Error ? err.message : 'An unknown error occurred';
   }
 };

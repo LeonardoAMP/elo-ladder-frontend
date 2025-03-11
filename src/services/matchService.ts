@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getApiUrl, API_ENDPOINTS } from '../config/api';
+import { getApiUrl, API_ENDPOINTS, getAuthHeaders } from '../config/api';
 
 export interface Match {
   id: number;
@@ -21,12 +21,16 @@ export const recordMatch = async (
       return 'Invalid match data';
     }
 
-    // Make API call to record the match using the configured API URL
-    const response = await axios.post(getApiUrl(API_ENDPOINTS.MATCHES.CREATE), {
-      playerAId: winnerId,
-      playerBId: winnerId == player2Id ? player1Id : player2Id, // loser
-      winnerId
-    });
+    // Make API call to record the match using the configured API URL with auth headers
+    const response = await axios.post(
+      getApiUrl(API_ENDPOINTS.MATCHES.CREATE), 
+      {
+        playerAId: winnerId,
+        playerBId: winnerId == player2Id ? player1Id : player2Id, // loser
+        winnerId
+      },
+      { headers: getAuthHeaders() }
+    );
 
     if (response.status === 200 || response.status === 201) {
       return null;
