@@ -4,9 +4,11 @@ import { getApiUrl, API_ENDPOINTS } from '../config/api';
 export interface Match {
   id: number;
   timestamp: string;
-  playerAId: string;
-  playerBId: string;
-  eloGain: number;
+  winnerId: string;
+  loserId: string;
+  eloChange: number;
+  winnerCurrentElo: number;
+  loserCurrentElo: number;
 }
 
 export const recordMatch = async (

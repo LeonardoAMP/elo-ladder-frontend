@@ -41,7 +41,7 @@ const App = () => {
   // Record a match using the match service
   const handleRecordMatch = async () => {
     if (!player1 || !player2 || !matchResult) return;
-    console.log(player1, player2, matchResult);
+    
     const result = await recordMatch(
       player1,
       player2,
@@ -57,6 +57,15 @@ const App = () => {
     const recentMatches = await getRecentMatches();
     if (typeof recentMatches !== 'string') {
       setMatchHistory(recentMatches);
+    }
+    
+    // Refresh player rankings after recording a match
+    const { data, error: playersError } = await fetchPlayers();
+    if (data) {
+      setPlayers(data);
+    }
+    if (playersError) {
+      setError(playersError);
     }
     
     setPlayer1('');
@@ -101,6 +110,24 @@ const App = () => {
     }
   });
 
+  // Helper function to format timestamp in GMT-4 timezone without DST adjustments
+  const formatTimestampGMT4 = (timestamp: string) => {
+    const date = new Date(timestamp);
+    
+    // Create UTC date then apply fixed GMT-4 offset (subtract 4 hours in milliseconds)
+    const utcDate = new Date(date.getTime());
+    const gmt4Date = new Date(utcDate.getTime() - (4 * 60 * 60 * 1000));
+    
+    return gmt4Date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
   // Render match history component
   const renderMatchHistory = () => (
     <div className="bg-white p-4 rounded shadow">
@@ -110,7 +137,7 @@ const App = () => {
           <table className="min-w-full">
             <thead>
               <tr className="bg-gray-100">
-                <th className="px-4 py-2 text-left">Date</th>
+                <th className="px-4 py-2 text-left">Date (GMT-4)</th>
                 <th className="px-4 py-2 text-left">Winner</th>
                 <th className="px-4 py-2 text-left">Loser</th>
                 <th className="px-4 py-2 text-left">ELO Change</th>
@@ -119,28 +146,22 @@ const App = () => {
             <tbody>
               {matchHistory.map((match) => {
                 // Find player names based on IDs
-                const winner = players.find(p => p.id === parseInt(match.playerAId))?.name || match.playerAId;
-                const loser = players.find(p => p.id === parseInt(match.playerBId))?.name || match.playerBId;
+                const winner = players.find(p => p.id === parseInt(match.winnerId))?.name || match.winnerId;
+                const loser = players.find(p => p.id === parseInt(match.loserId))?.name || match.loserId;
                 
-                // Format timestamp to a readable date
-                const formattedTime = new Date(match.timestamp).toLocaleString('en-GB', {
-                  year: 'numeric',
-                  month: '2-digit',
-                  day: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }).replace(',', '');
+                // Format timestamp to GMT-4 timezone
+                const formattedTime = formatTimestampGMT4(match.timestamp);
                 
                 return (
                   <tr key={match.id} className="border-b">
                     <td className="px-4 py-2">{formattedTime}</td>
                     <td className="px-4 py-2 font-medium text-green-600">
-                      {winner}
+                      {winner} <span className="text-gray-600">({match.winnerCurrentElo})</span>
                     </td>
                     <td className="px-4 py-2 text-red-600">
-                      {loser} 
+                      {loser} <span className="text-gray-600">({match.loserCurrentElo})</span>
                     </td>
-                    <td className="px-4 py-2">±{match.eloGain}</td>
+                    <td className="px-4 py-2">±{match.eloChange}</td>
                   </tr>
                 );
               })}
@@ -161,31 +182,25 @@ const App = () => {
         <div className="overflow-y-auto max-h-64">
           {matchHistory.slice(0, 5).map((match) => {
             // Find player names based on IDs
-            const winner = players.find(p => p.id === parseInt(match.playerAId))?.name || match.playerAId;
-            const loser = players.find(p => p.id === parseInt(match.playerBId))?.name || match.playerBId;
+            const winner = players.find(p => p.id === parseInt(match.winnerId))?.name || match.winnerId;
+            const loser = players.find(p => p.id === parseInt(match.loserId))?.name || match.loserId;
             
-            // Format timestamp to yyyy-MM-dd hh:mm
-            const formattedTime = new Date(match.timestamp).toLocaleString('en-GB', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-            }).replace(',', '');
+            // Format timestamp to GMT-4 timezone
+            const formattedTime = formatTimestampGMT4(match.timestamp);
             
             return (
               <div key={match.id} className="border-b py-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">{formattedTime}</span>
                   <span className="font-bold text-base">
-                    <span className={match.eloGain > 0 ? "text-green-600" : "text-red-600"}>
-                      {match.eloGain > 0 ? "+" : ""}{match.eloGain}
+                    <span className="text-green-600">
+                      ±{match.eloChange}
                     </span>
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium text-green-600">{winner}</span> defeated 
-                  <span className="text-red-600"> {loser}</span>
+                  <span className="font-medium text-green-600">{winner} <span className="text-gray-600">({match.winnerCurrentElo})</span></span> defeated 
+                  <span className="text-red-600"> {loser} <span className="text-gray-600">({match.loserCurrentElo})</span></span>
                 </div>
               </div>
             );
