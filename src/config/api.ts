@@ -6,6 +6,8 @@ export const API_ENDPOINTS = {
   MATCHES: {
     CREATE: '/api/matches',
     RECENT: '/api/matches/recent',
+    FILTER: '/api/matches/filter',
+    ANNUL: '/api/matches',
   },
   PLAYERS: {
     LIST: '/api/players',

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchPlayers, Player, addPlayer as apiAddPlayer } from './services/playerService';
-import { recordMatch, Match, getRecentMatches } from './services/matchService';
+import { recordMatch, Match, getRecentMatches, filterMatches, MatchFilter, annulMatch } from './services/matchService';
 import { login, logout, isAuthenticated, LoginCredentials, getTokenRemainingTime, isTokenExpired } from './services/authService';
 
 const App = () => {
@@ -22,6 +22,16 @@ const App = () => {
   const [sortDirection, setSortDirection] = useState('desc');
   const [matchHistory, setMatchHistory] = useState<Match[]>([]);
   const [view, setView] = useState('ladder');
+
+  // Filter states for match history
+  const [filters, setFilters] = useState<MatchFilter>({
+    limit: 50,
+    offset: 0
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const [filteredMatches, setFilteredMatches] = useState<Match[]>([]);
+  const [isFiltering, setIsFiltering] = useState(false);
+  const [hasAppliedFilters, setHasAppliedFilters] = useState(false);
 
   // Check authentication status on mount and set up auto-logout
   useEffect(() => {
@@ -193,7 +203,7 @@ const App = () => {
   };
 
   // Handle sorting
-  const handleSort = (column) => {
+  const handleSort = (column: keyof Player) => {
     if (sortBy === column) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -204,12 +214,80 @@ const App = () => {
 
   // Sort players
   const sortedPlayers = [...players].sort((a, b) => {
+    const aValue = a[sortBy as keyof Player] as number;
+    const bValue = b[sortBy as keyof Player] as number;
+    
     if (sortDirection === 'asc') {
-      return a[sortBy] - b[sortBy];
+      return aValue - bValue;
     } else {
-      return b[sortBy] - a[sortBy];
+      return bValue - aValue;
     }
   });
+
+  // Filter functions
+  const handleApplyFilters = async () => {
+    setIsFiltering(true);
+    const result = await filterMatches(filters);
+    
+    if (typeof result === 'string') {
+      setError(result);
+    } else {
+      setFilteredMatches(result);
+      setHasAppliedFilters(true);
+    }
+    setIsFiltering(false);
+  };
+
+  const handleClearFilters = () => {
+    setFilters({ limit: 50, offset: 0 });
+    setFilteredMatches([]);
+    setHasAppliedFilters(false);
+    setIsFiltering(false);
+  };
+
+  const updateFilter = (key: keyof MatchFilter, value: any) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value === '' ? undefined : value
+    }));
+  };
+
+  // Annul match function
+  const handleAnnulMatch = async (matchId: number) => {
+    if (!window.confirm('Are you sure you want to annul this match? This action cannot be undone.')) {
+      return;
+    }
+    
+    const result = await annulMatch(matchId);
+    
+    if (result) {
+      setError(result);
+      return;
+    }
+    
+    // Refresh both match history and filtered matches after annulling
+    const recentMatches = await getRecentMatches();
+    if (typeof recentMatches !== 'string') {
+      setMatchHistory(recentMatches);
+    }
+    
+    // If filters are applied, refresh filtered results
+    if (hasAppliedFilters) {
+      const filteredResult = await filterMatches(filters);
+      if (typeof filteredResult !== 'string') {
+        setFilteredMatches(filteredResult);
+      }
+    }
+    
+    // Refresh player rankings after annulling a match
+    const { data, error: playersError } = await fetchPlayers();
+    if (data) {
+      setPlayers(data);
+    }
+    if (playersError) {
+      setError(playersError);
+    }
+  };
 
   // Helper function to format timestamp in GMT-4 timezone without DST adjustments
   const formatTimestampGMT4 = (timestamp: string) => {
@@ -263,50 +341,211 @@ const App = () => {
   );
 
   // Render match history component
-  const renderMatchHistory = () => (
-    <div className="bg-white p-4 rounded shadow">
-      <h2 className="text-xl font-semibold mb-4">Match History</h2>
-      {matchHistory.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="px-4 py-2 text-left">Date (GMT-4)</th>
-                <th className="px-4 py-2 text-left">Winner</th>
-                <th className="px-4 py-2 text-left">Loser</th>
-                <th className="px-4 py-2 text-left">ELO Change</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matchHistory.map((match) => {
-                // Find player names based on IDs
-                const winner = players.find(p => p.id === parseInt(match.winnerId))?.name || match.winnerId;
-                const loser = players.find(p => p.id === parseInt(match.loserId))?.name || match.loserId;
-                
-                // Format timestamp to GMT-4 timezone
-                const formattedTime = formatTimestampGMT4(match.timestamp);
-                
-                return (
-                  <tr key={match.id} className="border-b">
-                    <td className="px-4 py-2">{formattedTime}</td>
-                    <td className="px-4 py-2 font-medium text-green-600">
-                      {winner} <span className="text-gray-600">({match.winnerCurrentElo})</span>
-                    </td>
-                    <td className="px-4 py-2 text-red-600">
-                      {loser} <span className="text-gray-600">({match.loserCurrentElo})</span>
-                    </td>
-                    <td className="px-4 py-2">±{match.eloChange}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+  const renderMatchHistory = () => {
+    const displayMatches = hasAppliedFilters ? filteredMatches : matchHistory;
+    
+    return (
+      <div className="bg-white p-4 rounded shadow">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold">Match History</h2>
+            {hasAppliedFilters && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                Filtered ({displayMatches.length} results)
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </button>
         </div>
-      ) : (
-        <p className="text-gray-500 text-center py-4">No matches recorded yet.</p>
-      )}
-    </div>
-  );
+        
+        {/* Filter Panel */}
+        {showFilters && (
+          <div className="bg-gray-50 p-4 rounded mb-4 border">
+            <h3 className="text-lg font-medium mb-3">Filter Matches</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Player Filter */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Player (Winner or Loser)</label>
+                <select
+                  className="w-full px-3 py-2 border rounded"
+                  value={filters.playerId || ''}
+                  onChange={(e) => updateFilter('playerId', e.target.value)}
+                >
+                  <option value="">Any Player</option>
+                  {players.map(player => (
+                    <option key={player.id} value={player.id}>{player.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Winner Filter */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Winner</label>
+                <select
+                  className="w-full px-3 py-2 border rounded"
+                  value={filters.winnerId || ''}
+                  onChange={(e) => updateFilter('winnerId', e.target.value)}
+                >
+                  <option value="">Any Winner</option>
+                  {players.map(player => (
+                    <option key={player.id} value={player.id}>{player.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Loser Filter */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Loser</label>
+                <select
+                  className="w-full px-3 py-2 border rounded"
+                  value={filters.loserId || ''}
+                  onChange={(e) => updateFilter('loserId', e.target.value)}
+                >
+                  <option value="">Any Loser</option>
+                  {players.map(player => (
+                    <option key={player.id} value={player.id}>{player.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Start Date */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Start Date</label>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 border rounded"
+                  value={filters.startDate || ''}
+                  onChange={(e) => updateFilter('startDate', e.target.value)}
+                />
+              </div>
+              
+              {/* End Date */}
+              <div>
+                <label className="block text-sm font-medium mb-1">End Date</label>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 border rounded"
+                  value={filters.endDate || ''}
+                  onChange={(e) => updateFilter('endDate', e.target.value)}
+                />
+              </div>
+              
+              {/* Min ELO Change */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Min ELO Change</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded"
+                  placeholder="0"
+                  value={filters.minEloChange || ''}
+                  onChange={(e) => updateFilter('minEloChange', e.target.value ? parseInt(e.target.value) : undefined)}
+                />
+              </div>
+              
+              {/* Max ELO Change */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Max ELO Change</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded"
+                  placeholder="100"
+                  value={filters.maxEloChange || ''}
+                  onChange={(e) => updateFilter('maxEloChange', e.target.value ? parseInt(e.target.value) : undefined)}
+                />
+              </div>
+              
+              {/* Limit */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Results Limit</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded"
+                  placeholder="50"
+                  value={filters.limit || ''}
+                  onChange={(e) => updateFilter('limit', e.target.value ? parseInt(e.target.value) : 50)}
+                />
+              </div>
+            </div>
+            
+            {/* Filter Action Buttons */}
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleApplyFilters}
+                disabled={isFiltering}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
+              >
+                {isFiltering ? 'Filtering...' : 'Apply Filters'}
+              </button>
+              <button
+                onClick={handleClearFilters}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              >
+                Clear Filters
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {displayMatches.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="px-4 py-2 text-left">Date (GMT-4)</th>
+                  <th className="px-4 py-2 text-left">Winner</th>
+                  <th className="px-4 py-2 text-left">Loser</th>
+                  <th className="px-4 py-2 text-left">ELO Change</th>
+                  {isLoggedIn && <th className="px-4 py-2 text-left">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {displayMatches.map((match) => {
+                  // Find player names based on IDs
+                  const winner = players.find(p => p.id === parseInt(match.winnerId))?.name || match.winnerId;
+                  const loser = players.find(p => p.id === parseInt(match.loserId))?.name || match.loserId;
+                  
+                  // Format timestamp to GMT-4 timezone
+                  const formattedTime = formatTimestampGMT4(match.timestamp);
+                  
+                  return (
+                    <tr key={match.id} className="border-b">
+                      <td className="px-4 py-2">{formattedTime}</td>
+                      <td className="px-4 py-2 font-medium text-green-600">
+                        {winner} <span className="text-gray-600">({match.winnerCurrentElo})</span>
+                      </td>
+                      <td className="px-4 py-2 text-red-600">
+                        {loser} <span className="text-gray-600">({match.loserCurrentElo})</span>
+                      </td>
+                      <td className="px-4 py-2 font-bold text-green-600">±{match.eloChange}</td>
+                      {isLoggedIn && (
+                        <td className="px-4 py-2">
+                          <button
+                            onClick={() => handleAnnulMatch(match.id)}
+                            className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                          >
+                            Annul
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-center py-4">
+            {isFiltering ? 'Loading...' : hasAppliedFilters ? 'No matches found matching the current filters.' : 'No matches recorded yet.'}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   // Recent Matches section (in the ladder view's left column)
   const renderRecentMatches = () => (
