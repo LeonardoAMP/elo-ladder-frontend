@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { fetchPlayers, Player, addPlayer as apiAddPlayer } from './services/playerService';
 import { recordMatch, Match, getRecentMatches, filterMatches, MatchFilter, annulMatch } from './services/matchService';
 import { login, logout, isAuthenticated, LoginCredentials, getTokenRemainingTime, isTokenExpired } from './services/authService';
+import PlayerIcon from './components/common/PlayerIcon';
 
 const App = () => {
   // Auth States
@@ -144,6 +145,33 @@ const App = () => {
     setIsLoggedIn(false);
   };
 
+  // Helper function for handling Enter key press
+  const handleKeyDown = (e: React.KeyboardEvent, callback: () => void) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      callback();
+    }
+  };
+
+  // Handle form submissions with validation
+  const handleLoginSubmit = () => {
+    if (username.trim() && password.trim()) {
+      handleLogin();
+    }
+  };
+
+  const handleAddPlayerSubmit = () => {
+    if (newPlayerName.trim()) {
+      addPlayer();
+    }
+  };
+
+  const handleRecordMatchSubmit = () => {
+    if (player1 && player2 && matchResult) {
+      handleRecordMatch();
+    }
+  };
+
   // Record a match using the match service
   const handleRecordMatch = async () => {
     if (!player1 || !player2 || !matchResult) return;
@@ -174,8 +202,7 @@ const App = () => {
       setError(playersError);
     }
     
-    setPlayer1('');
-    setPlayer2('');
+    // Keep player selections, only clear the winner selection for next match
     setMatchResult('');
   };
 
@@ -323,6 +350,7 @@ const App = () => {
           placeholder="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          onKeyDown={(e) => handleKeyDown(e, handleLoginSubmit)}
         />
         <input
           type="password"
@@ -330,6 +358,7 @@ const App = () => {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => handleKeyDown(e, handleLoginSubmit)}
         />
         <button 
           className="w-full bg-blue-600 text-white px-4 py-2 rounded"
@@ -505,9 +534,11 @@ const App = () => {
               </thead>
               <tbody>
                 {displayMatches.map((match) => {
-                  // Find player names based on IDs
-                  const winner = players.find(p => p.id === parseInt(match.winnerId))?.name || match.winnerId;
-                  const loser = players.find(p => p.id === parseInt(match.loserId))?.name || match.loserId;
+                  // Find player objects based on IDs
+                  const winnerPlayer = players.find(p => p.id === parseInt(match.winnerId));
+                  const loserPlayer = players.find(p => p.id === parseInt(match.loserId));
+                  const winnerName = winnerPlayer?.name || match.winnerId;
+                  const loserName = loserPlayer?.name || match.loserId;
                   
                   // Format timestamp to GMT-4 timezone
                   const formattedTime = formatTimestampGMT4(match.timestamp);
@@ -515,11 +546,21 @@ const App = () => {
                   return (
                     <tr key={match.id} className="border-b">
                       <td className="px-4 py-2">{formattedTime}</td>
-                      <td className="px-4 py-2 font-medium text-green-600">
-                        {winner} <span className="text-gray-600">({match.winnerCurrentElo})</span>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-2">
+                          {winnerPlayer && <PlayerIcon player={winnerPlayer} size="small" />}
+                          <span className="font-medium text-green-600">
+                            {winnerName} <span className="text-gray-600">({match.winnerCurrentElo})</span>
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-4 py-2 text-red-600">
-                        {loser} <span className="text-gray-600">({match.loserCurrentElo})</span>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-2">
+                          {loserPlayer && <PlayerIcon player={loserPlayer} size="small" />}
+                          <span className="text-red-600">
+                            {loserName} <span className="text-gray-600">({match.loserCurrentElo})</span>
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-2 font-bold text-green-600">±{match.eloChange}</td>
                       {isLoggedIn && (
@@ -554,9 +595,11 @@ const App = () => {
       {matchHistory.length > 0 ? (
         <div className="overflow-y-auto max-h-64">
           {matchHistory.slice(0, 5).map((match) => {
-            // Find player names based on IDs
-            const winner = players.find(p => p.id === parseInt(match.winnerId))?.name || match.winnerId;
-            const loser = players.find(p => p.id === parseInt(match.loserId))?.name || match.loserId;
+            // Find player objects based on IDs
+            const winnerPlayer = players.find(p => p.id === parseInt(match.winnerId));
+            const loserPlayer = players.find(p => p.id === parseInt(match.loserId));
+            const winnerName = winnerPlayer?.name || match.winnerId;
+            const loserName = loserPlayer?.name || match.loserId;
             
             // Format timestamp to GMT-4 timezone
             const formattedTime = formatTimestampGMT4(match.timestamp);
@@ -571,9 +614,16 @@ const App = () => {
                     </span>
                   </span>
                 </div>
-                <div>
-                  <span className="font-medium text-green-600">{winner} <span className="text-gray-600">({match.winnerCurrentElo})</span></span> defeated 
-                  <span className="text-red-600"> {loser} <span className="text-gray-600">({match.loserCurrentElo})</span></span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {winnerPlayer && <PlayerIcon player={winnerPlayer} size="small" />}
+                    <span className="font-medium text-green-600">{winnerName} <span className="text-gray-600">({match.winnerCurrentElo})</span></span>
+                  </div>
+                  <span className="text-gray-500">defeated</span>
+                  <div className="flex items-center gap-1">
+                    {loserPlayer && <PlayerIcon player={loserPlayer} size="small" />}
+                    <span className="text-red-600">{loserName} <span className="text-gray-600">({match.loserCurrentElo})</span></span>
+                  </div>
                 </div>
               </div>
             );
@@ -647,6 +697,7 @@ const App = () => {
                       placeholder="Player Name"
                       value={newPlayerName}
                       onChange={(e) => setNewPlayerName(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, handleAddPlayerSubmit)}
                     />
                     <button 
                       className="bg-green-600 text-white px-4 py-2 rounded-r"
@@ -683,7 +734,8 @@ const App = () => {
                     <select 
                       className="p-2 border rounded"
                       value={matchResult}
-                      onChange={(e) => setMatchResult(e.target.value)}>
+                      onChange={(e) => setMatchResult(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, handleRecordMatchSubmit)}>
                       <option value="">Select Winner</option>
                       {player1 && <option value={player1}>{players.find(p => p.id === parseInt(player1))?.name}</option>}
                       {player2 && <option value={player2}>{players.find(p => p.id === parseInt(player2))?.name}</option>}
@@ -711,7 +763,7 @@ const App = () => {
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="px-4 py-2 text-left">Rank</th>
-                    <th className="px-4 py-2 text-left">Name</th>
+                    <th className="px-4 py-2 text-left">Player</th>
                     <th 
                       className="px-4 py-2 text-left cursor-pointer"
                       onClick={() => handleSort('elo')}>
@@ -738,7 +790,12 @@ const App = () => {
                   {sortedPlayers.map((player, index) => (
                     <tr key={player.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                       <td className="px-4 py-2">{index + 1}</td>
-                      <td className="px-4 py-2 font-medium">{player.name}</td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-3">
+                          <PlayerIcon player={player} size="medium" />
+                          <span className="font-medium">{player.name}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-2">{player.elo}</td>
                       <td className="px-4 py-2">{player.matchesPlayed}</td>
                       <td className="px-4 py-2">{player.wins}</td>

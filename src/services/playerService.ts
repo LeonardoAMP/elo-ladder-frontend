@@ -2,10 +2,46 @@ import { getApiUrl, API_ENDPOINTS, getAuthHeaders } from '../config/api';
 
 // Default fallback data when API fails
 const defaultPlayers = [
-  { id: 1, name: 'Franco', elo: 1501, matchesPlayed: 0, wins: 0, losses: 0 },
-  { id: 2, name: 'Jak', elo: 1500, matchesPlayed: 0, wins: 0, losses: 0 },
-  { id: 3, name: 'Fred', elo: 1500, matchesPlayed: 0, wins: 0, losses: 0 },
-  { id: 4, name: 'DarkR', elo: 1500, matchesPlayed: 0, wins: 0, losses: 0 }
+  { 
+    id: 1, 
+    name: 'Franco', 
+    elo: 1501, 
+    matchesPlayed: 0, 
+    wins: 0, 
+    losses: 0, 
+    skin: 1,
+    mainCharacter: { id: 1, name: 'Mario', icon_name: 'mario' }
+  },
+  { 
+    id: 2, 
+    name: 'Jak', 
+    elo: 1500, 
+    matchesPlayed: 0, 
+    wins: 0, 
+    losses: 0, 
+    skin: 1,
+    mainCharacter: { id: 2, name: 'Luigi', icon_name: 'luigi' }
+  },
+  { 
+    id: 3, 
+    name: 'Fred', 
+    elo: 1500, 
+    matchesPlayed: 0, 
+    wins: 0, 
+    losses: 0, 
+    skin: 1,
+    mainCharacter: { id: 3, name: 'Peach', icon_name: 'peach' }
+  },
+  { 
+    id: 4, 
+    name: 'DarkR', 
+    elo: 1500, 
+    matchesPlayed: 0, 
+    wins: 0, 
+    losses: 0, 
+    skin: 1,
+    mainCharacter: { id: 4, name: 'Bowser', icon_name: 'bowser' }
+  }
 ];
 
 export interface Player {
@@ -15,6 +51,12 @@ export interface Player {
   matchesPlayed: number;
   wins: number;
   losses: number;
+  skin: number;
+  mainCharacter: {
+    id: number;
+    name: string;
+    icon_name: string;
+  };
 }
 
 export const fetchPlayers = async (): Promise<{ data: Player[], error: string | null }> => {
