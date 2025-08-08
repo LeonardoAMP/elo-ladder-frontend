@@ -823,7 +823,55 @@ const App = () => {
           {/* Right Column - Rankings */}
           <div className="col-span-3 bg-white p-4 rounded shadow">
             <h2 className="text-xl font-semibold mb-4">Player Rankings</h2>
-            <div className="overflow-x-auto">
+            
+            {/* Winners Podium */}
+            {sortedPlayers.length >= 3 && (
+              <div className="mb-6">
+                <div className="flex justify-center items-end gap-4 mb-4">
+                  {/* 2nd Place */}
+                  <div className="text-center">
+                    <div className="bg-gradient-to-t from-gray-300 to-gray-400 rounded-lg p-4 mb-2 h-24 flex flex-col justify-end shadow-md">
+                      <div className="flex flex-col items-center">
+                        <PlayerIcon player={sortedPlayers[1]} size="medium" />
+                        <div className="text-white font-bold text-sm mt-1">{sortedPlayers[1].name}</div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-400 text-white text-xs font-bold py-1 px-2 rounded">
+                      2nd - {sortedPlayers[1].elo} ELO
+                    </div>
+                  </div>
+                  
+                  {/* 1st Place */}
+                  <div className="text-center">
+                    <div className="bg-gradient-to-t from-yellow-400 to-yellow-500 rounded-lg p-4 mb-2 h-32 flex flex-col justify-end shadow-lg border-2 border-yellow-300">
+                      <div className="flex flex-col items-center">
+                        <div className="text-2xl mb-1">👑</div>
+                        <PlayerIcon player={sortedPlayers[0]} size="medium" />
+                        <div className="text-white font-bold text-sm mt-1">{sortedPlayers[0].name}</div>
+                      </div>
+                    </div>
+                    <div className="bg-yellow-500 text-white text-xs font-bold py-1 px-2 rounded">
+                      1st - {sortedPlayers[0].elo} ELO
+                    </div>
+                  </div>
+                  
+                  {/* 3rd Place */}
+                  <div className="text-center">
+                    <div className="bg-gradient-to-t from-orange-400 to-orange-500 rounded-lg p-4 mb-2 h-20 flex flex-col justify-end shadow-md">
+                      <div className="flex flex-col items-center">
+                        <PlayerIcon player={sortedPlayers[2]} size="medium" />
+                        <div className="text-white font-bold text-sm mt-1">{sortedPlayers[2].name}</div>
+                      </div>
+                    </div>
+                    <div className="bg-orange-500 text-white text-xs font-bold py-1 px-2 rounded">
+                      3rd - {sortedPlayers[2].elo} ELO
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
               <table className="min-w-full">
                 <thead>
                   <tr className="bg-gray-100">
@@ -852,21 +900,24 @@ const App = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedPlayers.map((player, index) => (
-                    <tr key={player.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                      <td className="px-4 py-2">{index + 1}</td>
-                      <td className="px-4 py-2">
-                        <div className="flex items-center gap-3">
-                          <PlayerIcon player={player} size="medium" />
-                          <span className="font-medium">{player.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2">{player.elo}</td>
-                      <td className="px-4 py-2">{player.matchesPlayed}</td>
-                      <td className="px-4 py-2">{player.wins}</td>
-                      <td className="px-4 py-2">{player.losses}</td>
-                    </tr>
-                  ))}
+                  {sortedPlayers.slice(sortedPlayers.length >= 3 ? 3 : 0).map((player, index) => {
+                    const actualRank = sortedPlayers.length >= 3 ? index + 4 : index + 1;
+                    return (
+                      <tr key={player.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                        <td className="px-4 py-2">{actualRank}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center gap-3">
+                            <PlayerIcon player={player} size="medium" />
+                            <span className="font-medium">{player.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2">{player.elo}</td>
+                        <td className="px-4 py-2">{player.matchesPlayed}</td>
+                        <td className="px-4 py-2">{player.wins}</td>
+                        <td className="px-4 py-2">{player.losses}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
