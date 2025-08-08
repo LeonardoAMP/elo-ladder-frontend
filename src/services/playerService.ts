@@ -80,12 +80,18 @@ export const fetchPlayers = async (): Promise<{ data: Player[], error: string | 
   }
 };
 
-export const addPlayer = async (playerName: string): Promise<Player | string> => {
+export interface CreatePlayerRequest {
+  name: string;
+  main?: number;
+  skin?: number;
+}
+
+export const addPlayer = async (playerData: CreatePlayerRequest): Promise<Player | string> => {
   try {
     const response = await fetch(getApiUrl(API_ENDPOINTS.PLAYERS.CREATE), {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ name: playerName })
+      body: JSON.stringify(playerData)
     });
     
     if (!response.ok) {

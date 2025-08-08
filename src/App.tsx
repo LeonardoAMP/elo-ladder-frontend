@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { fetchPlayers, Player, addPlayer as apiAddPlayer } from './services/playerService';
+import { fetchPlayers, Player, addPlayer as apiAddPlayer, CreatePlayerRequest } from './services/playerService';
 import { recordMatch, Match, getRecentMatches, filterMatches, MatchFilter, annulMatch } from './services/matchService';
 import { login, logout, isAuthenticated, LoginCredentials, getTokenRemainingTime, isTokenExpired } from './services/authService';
+import { fetchCharacters, Character } from './services/characterService';
 import PlayerIcon from './components/common/PlayerIcon';
 
 const App = () => {
@@ -13,9 +14,12 @@ const App = () => {
   
   // States
   const [players, setPlayers] = useState<Player[]>([]);
+  const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newPlayerName, setNewPlayerName] = useState('');
+  const [selectedCharacter, setSelectedCharacter] = useState<number | null>(null);
+  const [selectedSkin, setSelectedSkin] = useState<number>(1);
   const [player1, setPlayer1] = useState('');
   const [player2, setPlayer2] = useState('');
   const [matchResult, setMatchResult] = useState('');
@@ -86,9 +90,16 @@ const App = () => {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      const { data, error } = await fetchPlayers();
-      setPlayers(data);
-      setError(error);
+      
+      // Load players
+      const { data: playersData, error: playersError } = await fetchPlayers();
+      setPlayers(playersData);
+      if (playersError) setError(playersError);
+      
+      // Load characters
+      const { data: charactersData, error: charactersError } = await fetchCharacters();
+      setCharacters(charactersData);
+      if (charactersError && !playersError) setError(charactersError);
       
       // Load recent matches
       const recentMatches = await getRecentMatches();
@@ -210,7 +221,13 @@ const App = () => {
   const addPlayer = async () => {
     if (!newPlayerName.trim()) return;
     
-    const result = await apiAddPlayer(newPlayerName);
+    const playerData: CreatePlayerRequest = {
+      name: newPlayerName.trim(),
+      main: selectedCharacter || undefined,
+      skin: selectedSkin
+    };
+    
+    const result = await apiAddPlayer(playerData);
     
     if (typeof result === 'string') {
       setError(result);
@@ -226,7 +243,10 @@ const App = () => {
       setError(playersError);
     }
     
+    // Reset form
     setNewPlayerName('');
+    setSelectedCharacter(null);
+    setSelectedSkin(1);
   };
 
   // Handle sorting
@@ -690,18 +710,63 @@ const App = () => {
                 {/* Add Player Form */}
                 <div className="bg-white p-4 rounded shadow">
                   <h2 className="text-xl font-semibold mb-4">Add New Player</h2>
-                  <div className="flex">
-                    <input
-                      type="text"
-                      className="flex-1 px-3 py-2 border rounded-l"
-                      placeholder="Player Name"
+                  <div className="flex gap-3" style={{ flexDirection: 'column' }}>
+                    <input 
+                      type="text" 
+                      className="flex-1 px-3 py-2 border rounded" 
+                      placeholder="Player Name" 
                       value={newPlayerName}
                       onChange={(e) => setNewPlayerName(e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, handleAddPlayerSubmit)}
                     />
+                    
+                    <div className="flex gap-2" style={{ justifyContent: 'space-between' }}>
+                      <select 
+                        className="p-2 border flex-1 rounded"
+                        value={selectedCharacter || ''}
+                        onChange={(e) => setSelectedCharacter(e.target.value ? parseInt(e.target.value) : null)}
+                      >
+                        <option value="">Select Character</option>
+                        {characters.map(character => (
+                          <option key={character.id} value={character.id}>
+                            {character.name}
+                          </option>
+                        ))}
+                      </select>
+                      
+                      {selectedCharacter && (
+                        <div className="flex">
+                          {[1, 2, 3, 4, 5, 6, 7, 8].map((skinNumber) => {
+                            const selectedChar = characters.find(c => c.id === selectedCharacter);
+                            const iconSrc = selectedChar ? `/icons/stock/${selectedChar.icon_name}${skinNumber}.png` : '/icons/stock/default1.png';
+                            
+                            return (
+                              <button
+                                key={skinNumber}
+                                type="button"
+                                className={`p-1 border ${skinNumber === 1 ? 'rounded-l' : ''} ${skinNumber === 8 ? 'rounded-r' : ''} ${selectedSkin === skinNumber ? 'bg-blue-100 border-blue-500' : 'bg-white'}`}
+                                onClick={() => setSelectedSkin(skinNumber)}
+                              >
+                                <img 
+                                  src={iconSrc}
+                                  alt={`${selectedChar?.name || 'Character'} Skin ${skinNumber}`} 
+                                  className="w-8 h-8 rounded-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.src = '/icons/stock/default1.png';
+                                  }}
+                                />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    
                     <button 
-                      className="bg-green-600 text-white px-4 py-2 rounded-r"
-                      onClick={addPlayer}>
+                      className="bg-green-600 text-white px-4 py-2 rounded"
+                      onClick={addPlayer}
+                    >
                       Add Player
                     </button>
                   </div>

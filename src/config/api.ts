@@ -13,6 +13,9 @@ export const API_ENDPOINTS = {
     LIST: '/api/players',
     CREATE: '/api/players',
   },
+  CHARACTERS: {
+    LIST: '/api/characters',
+  },
   AUTH: {
     LOGIN: '/api/auth/login',
   }
